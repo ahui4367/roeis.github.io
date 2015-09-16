@@ -23,8 +23,8 @@
         pageStart: 0,
         classPrev: ['mu-moveFromTop', 'mu-moveToBottom'],
         classNext: ['mu-moveFromBottom', 'mu-moveToTop'],
-        beforeSlide: function() {},
-        afterSlide: function() {}
+        beforeSlide: function($pageout, $pagein) {},
+        afterSlide: function($pageout, $pagein, index) {}
     };
 
     // prevent global default event
@@ -81,13 +81,16 @@
             //2.enable custom class for page transition
             inClass = inClass ? inClass : idx > this.index ? this.options.classNext[0] : this.options.classPrev[0];
             outClass = outClass ? outClass : idx > this.index ? this.options.classNext[1] : this.options.classPrev[1];
+            
+            // the target page transform in
+            this.$pageIn = this.$el.eq(idx);
+
             this.options.beforeSlide.call(this, this.$pageOut, this.$pageIn);
             
             this._animationOut(this.$pageOut, outClass, function() {});
-            // the target page transform in
-            this.$pageIn = this.$el.eq(idx);
+
             this._animationIn(this.$pageIn, inClass, $.proxy(function() {
-                this.options.afterSlide.call(this, this.$pageOut, this.$pageIn);
+                this.options.afterSlide.call(this, this.$pageOut, this.$pageIn, idx);
                 this.isAnimating = false;
                 this.index = idx;
                 this.$pageOut = this.$pageIn;
