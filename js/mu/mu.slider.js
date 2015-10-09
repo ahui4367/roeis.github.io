@@ -23,8 +23,8 @@
         isVert: false,
         isHidden: true,
         timing: 'ease',                     // timing: 'cubic-bezier(.61,.07,.05,.87)'
-        beforeSlide: function() {},
-        afterSlide: function() {}
+        beforeSlide: function($nextPage, $prevPage) {},
+        afterSlide: function($nextPage, $prevPage, index) {}
     };
     Slider.prototype = {
         init: function() {
@@ -42,7 +42,7 @@
             self.looptime = null;
             self.index = 0;             // 起始序号
             self.clones = 0;            // 克隆数
-
+            
             if(self.opts.isLoop){
                 self.index = 1;
                 self.clones = 2;
@@ -55,15 +55,7 @@
             self.$slider = self.$children.closest('.slider-wrap');
 
             // in vertical mode , it resolve a different value
-            var height;
-            if(self.opts.isVert){
-                height = self.$el.height();
-            }else{
-                height = self.$children.height();
-            }
-            if(height > 0){
-                self.$el.css('height', height);
-            }
+            self._setHeight();
 
             if(self.opts.isHidden){
                 self.$el.css('overflow', 'hidden');
@@ -89,12 +81,20 @@
             if(self.opts.isLoop){
                 self._setClone();
             }
+            self.curIndex = 0;
+            self.$prevPage = self.$children.eq(self.curIndex);
 
             self._jump(self.index);
 
             if(self.opts.autoSlide){
                 self.loop();
             }
+        },
+        _setHeight: function(){
+            var height;
+
+            if(!this.opts.isVert) height = this.$children.height();
+            if(height > 0) this.$el.css('height', height);
         },
         _setClone: function(){
             if(this.opts.isLoop){
@@ -205,7 +205,10 @@
             });
         },
         _destory: function(){
-
+            if(this.opts.isLoop){
+                $('.mu-clone').remove();
+            }
+            this.$children.removeAttr('style').unwrap();
         },
         prev: function() {
             var idx = this.index;
@@ -229,11 +232,34 @@
             var self = this;
             self.animating = true;
             this._setTransition();
-            this._jump(index, function(){
-                self.index = index;
-                self.opts.beforeSlide.call(self, self.index);
+
+            var realIndex = self._getPageIndex(index),
+                flag = this.curIndex === realIndex;
+
+            this.$nextPage = this.$children.eq(realIndex);
+            this.$prevPage = this.$children.eq(this.curIndex);
+
+            // console.log(this.curIndex, realIndex, 'next');
+
+            self._jump(index, function(){
+                if(!flag) self.opts.beforeSlide.call(self, self.$nextPage, self.$prevPage);
             });
-            this._transitionCallback();
+
+            self._transitionCallback(flag);
+        },
+
+        _getPageIndex: function(index){
+            var cloneIndex = index;
+
+            if(this.opts.isLoop){
+                // till the last clone
+                if(cloneIndex === 0) cloneIndex = this.max - this.clones;
+                // till the first clone
+                if(cloneIndex === this.max - 1) cloneIndex = 1;
+                // get the origin index
+                cloneIndex --;
+            }
+            return cloneIndex;
         },
 
         /**
@@ -247,28 +273,30 @@
             var distance = this.opts.isVert ? this.$slider.height() : this.$slider.width(),
                 value = -distance * (index / this.max),
                 transValue = this.opts.isVert ? 'translate(0,' + value + 'px) translateZ(0)' : 'translate(' + value + 'px, 0) translateZ(0)';
-                
+            this.index = index;
             callback && callback();
             this.$slider.css({
                 '-webkit-transform': transValue,
                 'transform': transValue
             });
         },
-        _transitionCallback: function(){
+        _transitionCallback: function(flag){
             var self = this;
             self.$slider.one(window.animationEvents.transitionEnd, function(){
                 self.animating = false;
                 self._clearTransition();
+                // handle actual index, with or without loop
                 if(self.opts.isLoop){
-                    if(self.index === 0){
-                        self.index = self.max - self.clones;
-                    }
-                    if(self.index === self.max - 1){
-                        self.index = 1;
-                    }
+                    if(self.index === 0) self.index = self.max - self.clones;
+                    if(self.index === self.max - 1) self.index = 1;
+                    
                     self._jump(self.index);
+                    // because add clone, current Index minus one
+                    self.curIndex = self.index - 1;
+                }else{
+                    self.curIndex = self.index;
                 }
-                self.opts.afterSlide.call(self, self.index);
+                if(!flag) self.opts.afterSlide.call(self, self.$nextPage, self.$prevPage, self.curIndex);
             });
         }
     };
